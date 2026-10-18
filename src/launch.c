@@ -280,11 +280,16 @@ int sh_launch(HMODULE module, void *engine, void *client_user,
             struct sh_callback cb = {0};
             if (!api->get_callback(pipe, &cb)) break;
             bool valid = cb.id > 0 && cb.size >= 0 && (!cb.size || cb.data);
+            if (valid && cb.id == 703)
+                o->event("launch-callback-seen", (int32_t)cb.size);
             if (valid && cb.id == 703 && cb.size >= 16) {
                 uint64_t finished; int32_t kind; uint32_t size;
                 memcpy(&finished, cb.data, 8);
                 memcpy(&kind, (char *)cb.data+8, 4);
                 memcpy(&size, (char *)cb.data+12, 4);
+                o->event("launch-callback-kind", kind);
+                o->event("launch-callback-call-match", finished == call);
+                o->event("launch-callback-payload-size", (int32_t)size);
                 if (finished == call) {
                     /* Do not print the error-detail string: it can contain
                      * private paths. Only decode the fixed numeric result.
