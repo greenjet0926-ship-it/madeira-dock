@@ -245,6 +245,8 @@ int sh_launch(HMODULE module, void *engine, void *client_user,
     if (!call) { result = 43; goto done; }
     uint64_t begin = o->now_ms(), stopped_at = 0;
     bool seen_running = false, result_received = false, result_rejected = false;
+    bool callback_poll_entered = false, callback_poll_returned = false;
+    bool running_check_entered = false, running_check_returned = false;
     /* ml1970: a content refusal keeps Valve's client alive while it installs
      * what the launch needs, then asks it again. It never turns a refusal
      * into a launch: only Valve's own later success starts the game.
@@ -278,7 +280,16 @@ int sh_launch(HMODULE module, void *engine, void *client_user,
     while (!InterlockedCompareExchange(&interrupted, 0, 0)) {
         for (unsigned batch = 0; batch < 64; ++batch) {
             struct sh_callback cb = {0};
-            if (!api->get_callback(pipe, &cb)) break;
+            if (!callback_poll_entered) {
+                o->event("launch-callback-poll-entered", 1);
+                callback_poll_entered = true;
+            }
+            bool got_callback = api->get_callback(pipe, &cb);
+            if (!callback_poll_returned) {
+                o->event("launch-callback-poll-returned", got_callback);
+                callback_poll_returned = true;
+            }
+            if (!got_callback) break;
             bool valid = cb.id > 0 && cb.size >= 0 && (!cb.size || cb.data);
             if (valid && cb.id == 703)
                 o->event("launch-callback-seen", (int32_t)cb.size);
@@ -356,7 +367,15 @@ int sh_launch(HMODULE module, void *engine, void *client_user,
             api->free_callback(pipe);
             if (!valid) { result = SH_CALLBACK_INVALID; goto done; }
         }
+        if (!running_check_entered) {
+            o->event("launch-running-check-entered", 1);
+            running_check_entered = true;
+        }
         bool running = ((running_fn)(*(void ***)client_user)[67])(client_user, &gameid);
+        if (!running_check_returned) {
+            o->event("launch-running-check-returned", running);
+            running_check_returned = true;
+        }
         if (running && !seen_running) {
             o->event("launch-game-running", 1);
             seen_running = true;
