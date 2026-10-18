@@ -240,7 +240,9 @@ int sh_launch(HMODULE module, void *engine, void *client_user,
     o->event("launch-client-discovery-published", 1);
     SetConsoleCtrlHandler(on_control, TRUE);
     uint64_t gameid = appid;
+    o->event("launch-call-entering", 1);
     uint64_t call = ((launch_fn)(*(void ***)manager)[2])(manager, &gameid, launch_option, 0, "");
+    o->event("launch-call-returned", call != 0);
     o->event("launch-request-submitted", call != 0);
     if (!call) { result = 43; goto done; }
     uint64_t begin = o->now_ms(), stopped_at = 0;
@@ -286,6 +288,7 @@ int sh_launch(HMODULE module, void *engine, void *client_user,
                 memcpy(&kind, (char *)cb.data+8, 4);
                 memcpy(&size, (char *)cb.data+12, 4);
                 if (finished == call) {
+                    o->event("launch-callback-matched", 1);
                     /* Do not print the error-detail string: it can contain
                      * private paths. Only decode the fixed numeric result.
                      */
